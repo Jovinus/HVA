@@ -1,0 +1,61 @@
+---
+title: "HVA_Conditional_logistic"
+output: html_notebook
+---
+
+```{r}
+library(data.table)
+library(moonBook)
+library(tidyverse)
+library(magrittr)
+library(ggplot2)
+library(ggpubr)
+```
+
+```{r}
+setwd("/Users/kyunghyunlee/Studio/VO2max_Prediction/Request/")
+df_orig <- fread("./HVA_data_request.csv")
+df_orig
+```
+```{r}
+df_orig %<>% mutate(CRF_cat = ntile(CRF, 3)) %>%
+  mutate(CRF_cat = if_else(CRF_cat == 1, 'Low', if_else(CRF_cat == 2, 'Moderate', 'High')))
+df_orig
+```
+
+```{r}
+df_orig %<>% mutate_at(vars(sex, MVPA, Smoke, death, Diabetes, Hypertension, HTN_med, Hyperlipidemia, Hepatatis, ALC, MED_HYPERTENSION, MED_HYPERLIPIDEMIA, RER_over_gs, HVA), funs(factor))
+
+df_orig %<>% mutate(CRF_cat = factor(CRF_cat, levels = c('Low', 'Moderate', 'High')))
+
+df_orig %<>% mutate_at(vars(-c(sex, MVPA, Smoke, death, Diabetes, Hypertension, HTN_med, Hyperlipidemia, Hepatatis, ALC, MED_HYPERTENSION, MED_HYPERLIPIDEMIA, RER_over_gs, HVA, CRF_cat)), funs(as.numeric))
+```
+
+
+```{r}
+df_cac <- filter(df_orig, AJ_130_Score >= 0)
+df_cac %<>% mutate("CAC_over_100" = if_else(AJ_130_Score > 100, 1, 0), 
+                   "CAC_over_0" = if_else(AJ_130_Score > 0, 1, 0))
+df_cac %<>% mutate_at(vars(CAC_over_0, CAC_over_100), funs(factor))
+
+## Missing Imputation with Median value
+df_cac %<>% mutate_at(vars(BMI, SBP, Smoke, CHOLESTEROL, `Glucose, Fasting`, CRP), ~ifelse(is.na(.), median(., na.rm = TRUE), .))
+
+View(df_cac)
+```
+
+
+
+```{r}
+cac_logit <- glm(formula = "CAC_over_100 ~ AGE + BMI + SBP + Smoke + CHOLESTEROL + `Glucose, Fasting` + CRP + 
+                 Diabetes + HVA + CRF_cat", data = df_cac, family = binomial)
+summary(cac_logit)
+```
+
+```{r}
+exp(coef(cac_logit))
+
+exp(confint(cac_logit))
+
+```
+
